@@ -28,7 +28,7 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ## Link
 
-To just play the game as is, go to: [https://github.com/acdu01/break-into-a-phone](https://github.com/acdu01/break-into-a-phone)
+To just play the game as is, go to: [https://acdu01.github.io/break-into-a-phone/](https://acdu01.github.io/break-into-a-phone/)
 
 
 ## Browser data

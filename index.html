@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phone Emulator — heist sandbox</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+  /* ---- palette: TOY / sticker. candy colors, cream dot-grid bg, thick ink outlines. ---- */
+  :root{--bg:#fff6e5;--bg2:#fffdf7;--panel:#ffffff;--panel2:#fff3d6;--accent:#ff6b9d;--accent2:#4ea8ff;--gold:#ffd23f;--neon:#4ea8ff;--red:#ff6b9d;--green:#5ad67d;--purple:#b48cff;--ink:#2b2320;--ink-dim:#6b5d52;--wire:#2b2320;--mono:'Fredoka',sans-serif;--body:'Nunito',system-ui,sans-serif;--sticker:3px 3px 0 var(--ink)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  /* backdrop: cream + dot-grid. edit --bg above to change it. */
+  body{background:var(--bg);background-image:radial-gradient(#e8dcc0 1.5px,transparent 1.5px);background-size:20px 20px;color:var(--ink);font-family:var(--body);font-weight:700;min-height:100vh;overflow:hidden}
+  button{font-family:inherit}
+  .topbar{padding:10px 20px;border-bottom:3px solid var(--ink);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:nowrap;height:56px;background:var(--bg2);overflow:hidden}
+  .topbar .title{font-weight:600;font-family:var(--mono);font-size:1rem;letter-spacing:.2px;white-space:nowrap;flex-shrink:0}
+  .topbar .title .m{color:var(--accent)}
+  .topbar .hint{font-size:.78rem;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;min-width:0}
+  /* rung objective shown in the top bar during a run */
+  .topbar .hint.rung-hud{display:flex;align-items:center;gap:10px;overflow:visible;color:var(--ink)}
+  .hint.rung-hud .rh-rung{font-family:var(--mono);font-weight:700;font-size:.8rem;background:var(--gold);border:2px solid var(--ink);border-radius:999px;padding:3px 11px;white-space:nowrap;cursor:pointer;box-shadow:2px 2px 0 var(--ink)}
+  .hint.rung-hud .rh-rung:active{transform:translate(2px,2px);box-shadow:none}
+  .hint.rung-hud .rh-end{appearance:none;border:2px solid var(--ink);cursor:pointer;background:var(--green);color:var(--ink);font-size:.66rem;padding:4px 10px;border-radius:999px;font-family:var(--mono);font-weight:600;white-space:nowrap;box-shadow:2px 2px 0 var(--ink)}
+  .hint.rung-hud .rh-end:active{transform:translate(2px,2px);box-shadow:none}
+  @media(max-width:900px){.hint.rung-hud .rh-goal{display:none}}
+  /* teaching ring: pulsing highlight around the next step */
+  .teach-ring{position:absolute;z-index:40;border:3px solid var(--green);border-radius:16px;pointer-events:none;box-shadow:0 0 0 4px rgba(90,214,125,.35);animation:teachpulse 1.1s ease-in-out infinite}
+  .teach-ring::after{content:attr(data-tip);position:absolute;left:50%;top:-30px;transform:translateX(-50%);white-space:nowrap;background:var(--ink);color:#fff;font-size:.64rem;font-weight:700;padding:3px 9px;border-radius:999px;font-family:var(--body)}
+  @keyframes teachpulse{0%,100%{box-shadow:0 0 0 4px rgba(90,214,125,.35)}50%{box-shadow:0 0 0 9px rgba(90,214,125,.12)}}
+  @media(prefers-reduced-motion:reduce){.teach-ring{animation:none}}
+  /* boundary "fix card": pops when you cross a security line, teaches whether/how to undo it */
+  .fixcard{position:fixed;right:18px;bottom:18px;z-index:60;width:320px;max-width:calc(100vw - 36px);background:var(--panel);border:3px solid var(--ink);border-radius:16px;box-shadow:5px 5px 0 var(--ink);font-family:var(--body);color:var(--ink);transform:translateY(14px);opacity:0;pointer-events:none;transition:transform .22s ease,opacity .22s ease}
+  .fixcard.show{transform:translateY(0);opacity:1;pointer-events:auto}
+  .fixcard .fc-head{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:3px solid var(--ink);background:var(--gold);border-radius:13px 13px 0 0}
+  .fixcard .fc-ico{font-size:1.3rem}
+  .fixcard .fc-ttl{font-family:var(--mono);font-weight:700;font-size:.86rem;line-height:1.15;flex:1}
+  .fixcard .fc-x{appearance:none;border:2px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;width:24px;height:24px;border-radius:999px;font-weight:700;font-family:var(--mono);line-height:1;flex-shrink:0}
+  .fixcard .fc-body{padding:12px 13px;font-size:.78rem;line-height:1.42;font-weight:600}
+  .fixcard .fc-trace{color:var(--ink-dim);font-size:.72rem;margin-bottom:9px}
+  .fixcard .fc-fix{background:var(--panel2);border:2px solid var(--ink);border-radius:11px;padding:9px 11px}
+  .fixcard .fc-fix b{font-family:var(--mono);font-size:.72rem;display:block;margin-bottom:3px}
+  .fixcard .fc-can{color:var(--green);filter:saturate(.8) brightness(.72)}
+  .fixcard .fc-cant{color:var(--red);filter:saturate(.9) brightness(.85)}
+  .fixcard .fc-foot{padding:0 13px 12px}
+  .fixcard .fc-do{appearance:none;width:100%;border:2px solid var(--ink);background:var(--green);color:var(--ink);cursor:pointer;font-family:var(--mono);font-weight:700;font-size:.74rem;padding:7px 10px;border-radius:999px;box-shadow:2px 2px 0 var(--ink)}
+  @media(prefers-reduced-motion:reduce){.fixcard{transition:none}}
+  @media(max-width:900px){.topbar .hint{display:none}}
+  @media(max-width:420px){.topbar .title .m{display:none}}
+  .topbar .resetbtn{appearance:none;border:2px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;font-size:.72rem;padding:5px 12px;border-radius:20px;font-family:var(--mono);font-weight:600;box-shadow:2px 2px 0 var(--ink);white-space:nowrap;flex-shrink:0}
+  .topbar .resetbtn:hover{background:var(--gold)}
+  .topbar .resetbtn:active{transform:translate(2px,2px);box-shadow:none}
+  .heat-chip{font-family:var(--mono);font-weight:600;font-size:.72rem;color:var(--ink);display:flex;align-items:center;gap:7px;padding:4px 10px;border:2px solid var(--ink);border-radius:20px;background:#fff;box-shadow:2px 2px 0 var(--ink)}
+  .heat-chip b{color:var(--accent);text-transform:uppercase;font-size:.66rem}
+  .heat-chip .hc-bar{width:54px;height:7px;background:var(--panel2);border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+  .heat-chip .hc-bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+  .stage{position:relative;width:100%;height:calc(100vh - 56px);transition:width .3s;display:flex;align-items:center;justify-content:center;gap:clamp(30px,8vw,140px);padding:12px}
+  .stage.shifted{width:calc(100% - 340px)}
+  @media(max-width:1100px){.stage.shifted{width:calc(100% - 280px)}}
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+  .device{position:relative;z-index:3;flex:0 0 auto}
+  /* each device's fixed-px internals get uniformly scaled by a JS-set variable so the whole scene fits any window / phone screen. the wrapper's own box is sized to the SCALED footprint so flex layout matches the visual. */
+  #phone{width:calc(250px*var(--dev-scale,1));height:calc(560px*var(--dev-scale,1))}
+  #pc{width:calc(560px*var(--dev-scale,1));height:calc(440px*var(--dev-scale,1))}
+  .dev-scale{transform:scale(var(--dev-scale,1));transform-origin:top left;position:absolute;top:0;left:0}
+  #phone .dev-scale{width:250px;height:560px}
+  #pc .dev-scale{width:560px;height:440px}
+
+  /* ===== PHONE ===== */
+  .phone-body{width:250px;height:520px;border-radius:40px;background:var(--purple);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);position:relative;overflow:hidden}
+  .phone-notch{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:74px;height:18px;background:var(--ink);border-radius:0 0 14px 14px;z-index:4}
+  .phone-screen{position:absolute;inset:11px;border-radius:30px;background:#ffffff;border:3px solid var(--ink);overflow:hidden;display:flex;flex-direction:column}
+  .phone-screen.off{background:#2b2320}
+  .phone-status{display:flex;justify-content:space-between;align-items:center;padding:12px 18px 0;font-size:.66rem;color:var(--ink);z-index:3;flex-shrink:0}
+  #ph-view{flex:1;overflow:hidden;position:relative}
+  .ph-home-ind{height:5px;width:90px;background:var(--ink);border-radius:3px;margin:6px auto 8px;flex-shrink:0;cursor:pointer}
+  .side-btn{position:absolute;right:-6px;width:5px;background:var(--ink);border-radius:3px;cursor:pointer}
+  #btn-power{top:130px;height:46px}
+  .vol{left:-6px;width:5px;background:var(--ink);border-radius:3px;position:absolute}
+  .phone-label,.pc-label{display:none}
+
+  /* ===== COMPUTER ===== */
+  .pc-monitor{width:560px;height:360px;border-radius:16px;background:var(--neon);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);position:relative;overflow:hidden;transition:box-shadow .4s,border-color .4s}
+  .pc-monitor.on{box-shadow:6px 6px 0 var(--ink)}
+  .pc-off{position:absolute;inset:9px;border-radius:8px;background:#fff;border:3px solid var(--ink);display:flex;align-items:center;justify-content:center;color:var(--ink-dim);font-size:.85rem;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:var(--mono);font-weight:600}
+  .pc-monitor.on .pc-off{display:none}
+  .pc-desktop{position:absolute;inset:9px;border-radius:8px;background:#fff;border:3px solid var(--ink);display:none;flex-direction:column}
+  .pc-monitor.on .pc-desktop{display:flex}
+  .pc-menubar{display:flex;align-items:center;gap:10px;font-size:.68rem;color:var(--ink);border-bottom:3px solid var(--ink);padding:7px 12px;flex-shrink:0;background:var(--gold);font-weight:700}
+  .pc-menubar .dot{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--ink)}
+  #pc-view{flex:1;position:relative;overflow:hidden}
+  .pc-stand{width:120px;height:46px;background:var(--purple);border:3px solid var(--ink);border-top:none;margin:0 auto;border-radius:0 0 8px 8px}
+  .pc-foot{width:210px;height:14px;background:var(--ink);margin:4px auto 0;border-radius:8px}
+
+  /* ===== PORTS / WIRE ===== */
+  .port{position:absolute;z-index:6;width:30px;height:30px;border-radius:50%;background:#fff;border:2px dashed var(--ink);display:grid;place-items:center;font-size:.7rem;transition:all .2s}
+  .port.hot{border-color:var(--gold);border-style:solid;background:var(--gold);transform:scale(1.25)}
+  .port.filled{border-color:var(--green);border-style:solid;background:var(--green)}
+  #port-phone{left:50%;transform:translateX(-50%);bottom:-15px}
+  #port-pc{left:-15px;bottom:70px}
+  .plug-end{position:absolute;z-index:8;width:36px;height:24px;border-radius:8px;background:var(--gold);border:2px solid var(--ink);cursor:grab;display:grid;place-items:center;font-size:.7rem;color:var(--ink);box-shadow:2px 2px 0 var(--ink);touch-action:none;user-select:none}
+  .plug-end.seated{background:var(--green);cursor:default}
+  .plug-end span{pointer-events:none}
+
+  /* ===== POPUP / TOAST ===== */
+  /* link prompt — a dialog INSIDE the monitor, blurs only the computer screen */
+  .pc-dialog{position:absolute;inset:9px;border-radius:8px;z-index:9;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(43,35,32,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+  .pc-dialog.show{display:flex}
+  .popup{width:290px;max-width:100%;background:var(--panel);border:3px solid var(--ink);border-radius:18px;padding:20px;text-align:center;box-shadow:4px 4px 0 var(--ink)}
+  .popup .picon{font-size:2.3rem;margin-bottom:8px}
+  .popup h3{font-size:1.2rem;margin-bottom:6px;font-family:var(--mono);font-weight:700}
+  .popup p{font-size:.85rem;color:var(--ink-dim);margin-bottom:20px}
+  .popup .row{display:flex;gap:12px;justify-content:center}
+  .popup button{appearance:none;border:2px solid var(--ink);cursor:pointer;font-weight:700;font-size:.9rem;padding:11px 26px;border-radius:999px;box-shadow:2px 2px 0 var(--ink);font-family:var(--mono)}
+  .popup button:active{transform:translate(2px,2px);box-shadow:none}
+  .popup .yes{background:var(--green);color:var(--ink)}
+  .popup .no{background:#fff;color:var(--ink)}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--gold);border:3px solid var(--ink);color:var(--ink);padding:11px 22px;border-radius:999px;font-size:.85rem;font-weight:800;opacity:0;transition:all .35s;z-index:30;box-shadow:4px 4px 0 var(--ink)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ===== under-the-hood panel ===== */
+  .hood{position:fixed;top:56px;right:0;bottom:0;width:340px;background:var(--bg2);border-left:3px solid var(--ink);z-index:15;transform:translateX(100%);transition:transform .3s;display:flex;flex-direction:column;padding:14px}
+  .hood.show{transform:translateX(0)}
+  .hood-head{font-weight:700;font-family:var(--mono);display:flex;align-items:center;color:var(--ink);font-size:1.05rem}
+  .hood-head .hood-x{margin-left:auto;cursor:pointer;color:var(--ink-dim)}
+  .hood-sub{font-size:.68rem;color:var(--ink-dim);margin:6px 0 12px;line-height:1.4}
+  #hood-stack{flex:1;min-height:0;overflow-y:auto;padding-right:4px;margin-right:-4px}
+  .layer{border:2px solid var(--ink);border-radius:12px;padding:8px 10px;margin-bottom:7px;cursor:pointer;transition:all .4s;background:var(--panel);box-shadow:2px 2px 0 var(--ink)}
+  .layer:hover{background:var(--panel2)}
+  .layer.lit{border-color:var(--ink);background:var(--gold);box-shadow:3px 3px 0 var(--ink)}
+  .layer .ln{font-weight:800;font-size:.78rem;display:flex;align-items:center;gap:8px}
+  .layer .lnum{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:.6rem;font-weight:800;flex-shrink:0}
+  .layer.lit .lnum{background:var(--ink);color:var(--gold)}
+  .layer .ld{font-size:.66rem;color:var(--ink);margin-top:3px;line-height:1.4}
+  .layer .rootline{color:#c0392b}
+  .layer .ltag{margin-left:auto;font-size:.56rem;padding:2px 8px;border-radius:999px;background:var(--purple);color:#fff;border:1.5px solid var(--ink);font-weight:700}
+  .layer.root .ltag{background:var(--red);color:#fff}
+  .layer .lbreak{font-size:.64rem;color:#c0392b;font-weight:700;margin-top:0;max-height:0;overflow:hidden;opacity:0;transition:all .25s;line-height:1.4}
+  .layer.open .lbreak{max-height:120px;opacity:1;margin-top:7px}
+  .hood-arrow{text-align:center;color:var(--ink-dim);font-size:.58rem;letter-spacing:.5px;padding:3px 0;opacity:.7}
+  .hood-log{border-top:3px solid var(--ink);padding-top:8px;margin-top:10px;max-height:30%;display:flex;flex-direction:column;flex-shrink:0}
+  .hl-title{font-size:.6rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--ink-dim);margin-bottom:4px;font-weight:800}
+  #hl-items{overflow-y:auto;font-size:.68rem;font-family:var(--body);font-weight:700;color:var(--ink);line-height:1.5}
+  #hl-items .hl{padding:2px 0;border-bottom:1px solid rgba(43,35,32,.1)}
+  #hl-items .hl b{color:var(--accent)}
+  @media(max-width:1100px){.hood{width:280px}}
+  /* teach-me to-do panel (shares .hood slide-in) */
+  .teach-panel{border-left-color:var(--green)}
+  #teach-list{flex:1;min-height:0;overflow-y:auto;padding-right:4px;margin-right:-4px}
+  .tgoal{border:2px solid var(--ink);border-radius:12px;padding:9px 11px;margin-bottom:8px;cursor:pointer;background:var(--panel);box-shadow:2px 2px 0 var(--ink);transition:all .15s}
+  .tgoal:hover{background:var(--panel2)}
+  .tgoal.active{background:var(--green);box-shadow:3px 3px 0 var(--ink)}
+  .tgoal .tg-top{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.78rem}
+  .tgoal .tg-ico{font-size:1rem}
+  .tgoal .tg-sub{font-size:.64rem;color:var(--ink-dim);margin-top:3px;line-height:1.4}
+  .tgoal.active .tg-sub{color:var(--ink)}
+  .tsteps{list-style:none;margin:8px 0 0;padding:0;display:none}
+  .tgoal.active .tsteps{display:block}
+  .tsteps li{font-size:.66rem;padding:4px 6px 4px 22px;position:relative;color:var(--ink);line-height:1.4;cursor:pointer;border-radius:7px;transition:background .12s}
+  .tsteps li:hover{background:rgba(43,35,32,.08)}
+  .tsteps li::before{content:'○';position:absolute;left:5px;color:var(--ink-dim)}
+  .tsteps li.done{color:var(--ink-dim);text-decoration:line-through;cursor:default}
+  .tsteps li.done:hover{background:none}
+  .tsteps li.done::before{content:'●';color:var(--green)}
+  .tsteps li.next{font-weight:800}
+  .tsteps li.next::before{content:'▸';color:var(--green)}
+  .tsteps li.picked{font-weight:800;background:rgba(90,214,125,.4)}
+  .tsteps li.picked::before{content:'◉';color:var(--ink)}
+</style>
+<link rel="stylesheet" href="emu-apps.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="title">PHONE EMULATOR <span class="m">// heist sandbox</span></div>
+  <div class="hint" id="hint"></div>
+  <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+    <span id="heat-chip" class="heat-chip" style="display:none"></span>
+    <button class="resetbtn" id="heatbtn" style="display:none">hide suspicion</button>
+    <button class="resetbtn" id="learnbtn" style="border-color:var(--green);color:#2b2320">teach me: off</button>
+    <button class="resetbtn" id="infobtn" style="border-color:var(--gold);color:#2b2320">info cards: on</button>
+    <button class="resetbtn" id="hoodbtn" style="border-color:var(--neon);color:var(--neon)">under the hood: off</button>
+    <button class="resetbtn" id="resetbtn">reset</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <svg class="wires" id="wires">
+    <path id="cable" stroke="#2b2320" stroke-width="6" fill="none" stroke-linecap="round"></path>
+  </svg>
+
+  <div class="device" id="phone">
+    <div class="dev-scale" id="phone-scale">
+    <div class="phone-body">
+      <div class="phone-notch"></div>
+      <div class="side-btn" id="btn-power" title="Power button (hold to see power menu)"></div>
+      <div class="vol" style="top:110px;height:30px"></div><div class="vol" style="top:150px;height:30px"></div>
+      <div class="phone-screen" id="ph-screen">
+        <div class="phone-status"><span id="ph-time">--:--</span><span>📶 <span id="ph-batt">100%</span>🔋</span></div>
+        <div id="ph-view"></div>
+        <div id="ph-popups"></div>
+        <div class="ph-home-ind" id="ph-home" title="Home"></div>
+      </div>
+    </div>
+    <div class="port" id="port-phone">🔌</div>
+    </div>
+  </div>
+
+  <div class="device" id="pc">
+    <div class="dev-scale" id="pc-scale">
+    <div class="pc-monitor" id="pc-monitor">
+      <div class="pc-off" id="pc-off">● asleep — click to wake</div>
+      <div class="pc-desktop">
+        <div class="pc-menubar">
+          <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+          <span id="pc-app-title" style="margin-left:6px;color:#2b2320">Desktop</span>
+          <span style="margin-left:auto"><span id="pc-batt">🔋 --%</span> · <span id="pc-link">📵 no phone</span> · <span id="pc-time">--:--</span></span>
+        </div>
+        <div id="pc-view"></div>
+      </div>
+      <div class="pc-dialog" id="overlay">
+        <div class="popup" id="link-popup">
+          <h3>New device detected</h3>
+          <p>A phone just connected over USB. Allow this computer to access it?</p>
+          <div class="row"><button class="yes" id="btn-yes">Allow</button><button class="no" id="btn-no">Deny</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="pc-stand"></div><div class="pc-foot"></div>
+    <div class="port" id="port-pc">🔌</div>
+    </div>
+  </div>
+
+  <div class="plug-end" id="plug-phone" data-target="port-phone"><span>🔻</span></div>
+  <div class="plug-end" id="plug-pc" data-target="port-pc"><span>🔺</span></div>
+</div>
+
+<div class="hood" id="hood">
+  <div class="hood-head">Under the hood<span class="hood-x" id="hood-x">✕</span></div>
+  <div class="hood-sub">The 6 layers of the phone. Do something on the phone or computer and watch which layer lights up.</div>
+  <div id="hood-stack"></div>
+  <div class="hood-log" id="hood-log"><div class="hl-title">activity trace</div><div id="hl-items"></div></div>
+</div>
+
+<div class="hood teach-panel" id="teach-panel">
+  <div class="hood-head">Teach me<span class="hood-x" id="teach-x">✕</span></div>
+  <div class="hood-sub">Pick a scheme. The green ring will walk you through every step to pull it off.</div>
+  <div id="teach-list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== shared state ===== */
+window.EMU = {
+  connected:false, pcOn:false,
+  phone:{ on:true, devOptions:false, usbDebug:false, oemUnlock:false, gateOpen:false, rooted:false,
+          os:'Stock OS 14', wallpaper:'linear-gradient(160deg,#ffe3f1,#e3f0ff)', battery:87, buildTaps:0,
+          /* rung-1 customization */
+          ringtone:'Reflection', theme:'dark', contrast:'normal', fontScale:1, iconLayout:'default',
+          lang:'English', clock24:false, appNames:{}, hiddenApps:[],
+          /* rung-2 settings-channel (remote) */
+          wifi:true, bluetooth:false, airplane:false, dns:'auto', vpn:false, screenReader:false,
+          animScale:1, disabledApps:[], adminLock:false,
+          /* bank app — balks at root */
+          bankBalance:1428.55 },
+  /* uploaded photos live in-memory only (session-only, never persisted) */
+  uploads:[],
+  save(){ try{localStorage.setItem('emu',JSON.stringify({phone:this.phone}))}catch(e){} },
+  load(){ try{const r=localStorage.getItem('emu'); if(r){Object.assign(this.phone,JSON.parse(r).phone)}}catch(e){} }
+};
+EMU.load();
+
+/* ===== phone visual skin (theme / contrast / font / animation) ===== */
+window.applyPhoneSkin=function(){
+  const p=EMU.phone, scr=document.getElementById('ph-screen'); if(!scr)return;
+  // contrast / grayscale filters — tuned for the light toy theme
+  const filt={normal:'',grayscale:'grayscale(1)',high:'contrast(1.25) saturate(1.15) brightness(.98)',invert:'invert(.92) hue-rotate(180deg)'}[p.contrast]||'';
+  scr.style.filter=filt;
+  // light / dark theme on the chrome
+  scr.classList.toggle('lighttheme', p.theme==='light');
+  // font scaling
+  scr.style.fontSize=(p.fontScale||1)*100+'%';
+  // animation speed (slow = accessibility prank). 0 disables transitions.
+  scr.style.setProperty('--anim', (p.animScale===0?0.001:(0.25*(p.animScale||1)))+'s');
+};
+
+function fmtTime(d){return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+function tick(){
+  const now=new Date();
+  document.getElementById('ph-time').textContent=fmtTime(now);
+  document.getElementById('pc-time').textContent=fmtTime(now);
+  document.getElementById('ph-batt').textContent=EMU.phone.battery+'%';
+  if(window.PhoneOS) PhoneOS.tick(now);
+}
+setInterval(tick,1000); tick();
+if(window.applyPhoneSkin) applyPhoneSkin();
+/* phone battery: slow fake drain */
+setInterval(()=>{ if(EMU.phone.on && EMU.phone.battery>1){EMU.phone.battery--; EMU.save();} }, 90000);
+/* computer battery: real, via Battery API when available */
+(async()=>{
+  const el=document.getElementById('pc-batt');
+  if(navigator.getBattery){
+    try{ const b=await navigator.getBattery();
+      const upd=()=>{el.textContent=(b.charging?'⚡':'🔋')+Math.round(b.level*100)+'%'};
+      upd(); b.addEventListener('levelchange',upd); b.addEventListener('chargingchange',upd); return;
+    }catch(e){}
+  }
+  el.textContent='🔌 AC'; // desktop / no battery API
+})();
+
+/* ===== toast ===== */
+let toastT=null;
+window.toast=function(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200)};
+
+/* ===== computer power ===== */
+function pcWake(){ EMU.pcOn=true; document.getElementById('pc-monitor').classList.add('on'); if(window.PcOS) PcOS.home(); }
+document.getElementById('pc-off').addEventListener('click',pcWake);
+
+/* ===== wire drag ===== */
+const stage=document.getElementById('stage'); const seated={'plug-phone':false,'plug-pc':false}; let dragging=null,offset={x:0,y:0};
+function placePlug(p,cx,cy){p.style.left=(cx-p.offsetWidth/2)+'px';p.style.top=(cy-p.offsetHeight/2)+'px'}
+function centerOf(el){const r=el.getBoundingClientRect(),s=stage.getBoundingClientRect();return{x:r.left-s.left+r.width/2,y:r.top-s.top+r.height/2}}
+function restFor(pid){const s=stage.getBoundingClientRect();const ph=document.getElementById('phone').getBoundingClientRect();const pc=document.getElementById('pc').getBoundingClientRect();const gapL=ph.right-s.left,gapR=pc.left-s.left;const cx=(gapL+gapR)/2,cy=s.height*0.5;return{x:cx+(pid==='plug-phone'?-30:30),y:cy}}
+function initPlugs(){['plug-phone','plug-pc'].forEach(pid=>{const p=document.getElementById(pid);const at=seated[pid]?centerOf(document.getElementById(p.dataset.target)):restFor(pid);placePlug(p,at.x,at.y)});redraw()}
+function redraw(){const s=stage.getBoundingClientRect();const a=centerOf(document.getElementById('plug-phone')),b=centerOf(document.getElementById('plug-pc'));const sag=Math.min(120,Math.max(40,Math.hypot(b.x-a.x,b.y-a.y)/4));let low=Math.max(a.y,b.y)+sag;low=Math.min(low,s.height-10);const path=document.getElementById('cable');path.setAttribute('d',`M ${a.x} ${a.y} C ${a.x} ${low}, ${b.x} ${low}, ${b.x} ${b.y}`);path.setAttribute('stroke',seated['plug-phone']&&seated['plug-pc']?'#5ad67d':'#2b2320')}
+function ptr(e){return e.touches&&e.touches[0]?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}
+function startDrag(e,p){if(seated[p.id])return;dragging=p;const q=ptr(e),r=p.getBoundingClientRect();offset={x:q.x-r.left,y:q.y-r.top};e.preventDefault()}
+function moveDrag(e){if(!dragging)return;const q=ptr(e),s=stage.getBoundingClientRect();let nx=q.x-s.left-offset.x+dragging.offsetWidth/2,ny=q.y-s.top-offset.y+dragging.offsetHeight/2;nx=Math.min(Math.max(nx,20),s.width-20);ny=Math.min(Math.max(ny,20),s.height-20);placePlug(dragging,nx,ny);redraw();const port=document.getElementById(dragging.dataset.target);const a=centerOf(dragging),b=centerOf(port);port.classList.toggle('hot',Math.hypot(a.x-b.x,a.y-b.y)<60);e.preventDefault()}
+function endDrag(){if(!dragging)return;const port=document.getElementById(dragging.dataset.target);const a=centerOf(dragging),b=centerOf(port);port.classList.remove('hot');if(Math.hypot(a.x-b.x,a.y-b.y)<60){placePlug(dragging,b.x,b.y);dragging.classList.add('seated');port.classList.add('filled');seated[dragging.id]=true;redraw();toast(dragging.id==='plug-phone'?'Phone end connected':'Computer end connected');if(seated['plug-phone']&&seated['plug-pc']){setTimeout(pcWake,400);setTimeout(()=>{if(EMU.phone.on)document.getElementById('overlay').classList.add('show');},1200)}}else{initPlugs()}dragging=null}
+document.querySelectorAll('.plug-end').forEach(p=>{p.addEventListener('mousedown',e=>startDrag(e,p));p.addEventListener('touchstart',e=>startDrag(e,p),{passive:false})});
+/* scale both devices uniformly so phone + gap + computer always fit the window (portrait or landscape, down to a phone screen) */
+function fitScene(){
+  const s=stage.getBoundingClientRect();
+  const gap=Math.max(30,Math.min(140,s.width*0.08));
+  const padX=24,padY=24;
+  // natural footprint (unscaled): phone 250w x 520h, computer ~560w x 420h (monitor+stand+foot)
+  const PW=250,PH=560,CW=560,CH=440;
+  const availW=s.width-padX, availH=s.height-padY;
+  const landscape=s.width>=s.height*1.1 || s.width>620;
+  let scale;
+  if(landscape){
+    // side by side: width = phone + gap + computer
+    const wScale=(availW-gap)/(PW+CW);
+    const hScale=availH/Math.max(PH,CH);
+    scale=Math.min(wScale,hScale,1.1);
+    stage.style.flexDirection='row';
+    stage.style.alignItems='center';
+  }else{
+    // stacked (narrow portrait): both devices + gap must fit the height.
+    // the scaled boxes still occupy their UNSCALED layout height in the column,
+    // so divide the extra (1-scale)*height back out by solving conservatively.
+    const wScale=availW/Math.max(PW,CW);
+    const hScale=(availH-gap)/(PH+CH);
+    scale=Math.min(wScale,hScale,1.1);
+    stage.style.flexDirection='column';
+    stage.style.alignItems='center';
+  }
+  scale=Math.max(0.3,scale);
+  document.documentElement.style.setProperty('--dev-scale',scale.toFixed(3));
+}
+window.addEventListener('mousemove',moveDrag);window.addEventListener('touchmove',moveDrag,{passive:false});window.addEventListener('mouseup',endDrag);window.addEventListener('touchend',endDrag);window.addEventListener('resize',()=>{if(!dragging){fitScene();requestAnimationFrame(initPlugs)}});
+window.addEventListener('load',()=>{fitScene();requestAnimationFrame(initPlugs)});
+
+/* ===== connect popup ===== */
+window.setLink=function(on){EMU.connected=on;document.getElementById('pc-link').textContent=on?'📱 phone linked':'📵 no phone';const hint=document.getElementById('hint');if(hint&&!(window.GAME&&GAME.active()))hint.textContent=on?'✅ Linked. Open the Terminal on the computer to command the phone.':'';if(window.PcOS)PcOS.refresh()}
+document.getElementById('btn-yes').addEventListener('click',()=>{document.getElementById('overlay').classList.remove('show');setLink(true);toast('✅ Phone linked');if(window.fixCard)window.fixCard('link')});
+document.getElementById('btn-no').addEventListener('click',()=>{document.getElementById('overlay').classList.remove('show');setLink(false);toast('✖ Connection denied')});
+
+/* ===== reset ===== */
+document.getElementById('resetbtn').addEventListener('click',()=>{if(!confirm('Factory-reset the whole sandbox?'))return;localStorage.removeItem('emu');localStorage.removeItem('emu_fixseen');location.reload()});
+
+/* ===== under-the-hood layer panel ===== */
+const LAYERS=[
+  {id:'apps',  n:'Your apps', tag:'userspace', d:'Instagram, the bank app, the games. Each runs as its own low-privilege user, walled off from the others.', b:'Nothing to use the phone FOR — no apps, just a blank launcher. The lights are on but no one\'s home.'},
+  {id:'fw',    n:'Android framework', tag:'APIs', d:'The services apps call — "let me use the camera", "give me location". Apps never touch hardware directly; they ask here.', b:'Apps have no way to ask for anything. Tapping the camera does nothing — there\'s no one to pass the request to the hardware.'},
+  {id:'libs',  n:'Runtime + native libs', tag:'ART / C++', d:'Runs the app code and the shared C/C++ libraries (graphics, media, crypto).', b:'App code can\'t even execute — Android apps are written to run inside this runtime. No runtime, no running.'},
+  {id:'hal',   n:'HAL', tag:'translator', d:'Hardware Abstraction Layer. Turns a generic "take a photo" into the exact commands THIS camera chip understands — so Android runs on any phone.', b:'The framework\'s generic requests reach the kernel but mean nothing to THIS specific chip. Android would need rewriting for every phone model.'},
+  {id:'kernel',n:'Linux kernel', tag:'the referee', d:'Talks to hardware directly, hands out CPU/memory, and ENFORCES the walls between apps. The ultimate authority.', b:'Everything. No referee = no walls between apps (any app can read any other\'s data), nothing scheduling the CPU, nothing driving the hardware. The phone doesn\'t boot.'},
+  {id:'hw',    n:'Hardware', tag:'metal', d:'The actual camera, radio, storage, and chip.', b:'There\'s no phone. Software with nothing to run on.'}
+];
+let hoodOpen=false;
+function renderStack(){
+  const el=document.getElementById('hood-stack'); if(!el)return;
+  el.innerHTML=LAYERS.map((L,i)=>
+    `<div class="layer ${L.id==='kernel'?'root':''}" data-l="${L.id}"><div class="ln"><span class="lnum">${i+1}</span>${L.n}<span class="ltag">${L.tag}</span></div><div class="ld">${L.d}${L.id==='kernel'?'<br><b class="rootline">root = UID 0</b> — the one user the walls don\'t apply to. "Getting root" = asking the kernel to run your code as UID 0.':''}</div><div class="lbreak" data-b="${L.id}"><b>remove this →</b> ${L.b}</div></div>`+
+    (i<LAYERS.length-1?'<div class="hood-arrow">↑ asks · answers ↓</div>':'')
+  ).join('');
+  el.querySelectorAll('.layer').forEach(d=>d.onclick=()=>{
+    const open=d.classList.contains('open');
+    el.querySelectorAll('.layer').forEach(x=>x.classList.remove('open'));
+    if(!open)d.classList.add('open');
+    window.hood([d.dataset.l], 'inspected '+LAYERS.find(x=>x.id===d.dataset.l).n+' — see what breaks if it\'s missing');
+  });
+}
+/* global: light up layers + log a one-line trace. called by phone/computer actions. */
+window.hood=function(ids, label){
+  if(!hoodOpen)return;
+  const items=document.getElementById('hl-items');
+  document.querySelectorAll('.layer').forEach(el=>el.classList.remove('lit'));
+  (ids||[]).forEach((id,k)=>{const el=document.querySelector(`.layer[data-l="${id}"]`);if(el){setTimeout(()=>el.classList.add('lit'),k*260)}});
+  if(label&&items){const d=document.createElement('div');d.className='hl';d.innerHTML='▸ '+label;items.insertBefore(d,items.firstChild);while(items.children.length>30)items.removeChild(items.lastChild)}
+  const hold=3400+(ids?ids.length*260:0);
+  setTimeout(()=>document.querySelectorAll('.layer').forEach(el=>el.classList.remove('lit')), hold);
+};
+function toggleHood(){hoodOpen=!hoodOpen;if(hoodOpen&&window.closeTeach)window.closeTeach();document.getElementById('hood').classList.toggle('show',hoodOpen);document.getElementById('stage').classList.toggle('shifted',hoodOpen);const btn=document.getElementById('hoodbtn');btn.textContent='under the hood: '+(hoodOpen?'on':'off');try{localStorage.setItem('emu_hood',hoodOpen?'1':'0')}catch(e){}if(hoodOpen)renderStack();setTimeout(()=>{if(typeof fitScene==='function')fitScene();if(typeof initPlugs==='function'&&!dragging)initPlugs()},320)}
+window.closeHood=function(){if(hoodOpen)toggleHood()};
+document.getElementById('hoodbtn').addEventListener('click',toggleHood);
+document.getElementById('hood-x').addEventListener('click',toggleHood);
+/* restore persisted state on load */
+try{if(localStorage.getItem('emu_hood')==='1'){toggleHood()}}catch(e){}
+</script>
+<script src="emu-phone.js"></script>
+<script src="emu-pc.js"></script>
+<script src="game-engine.js"></script>
+</body>
+</html>

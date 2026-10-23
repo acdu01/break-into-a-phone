@@ -1,0 +1,7 @@
+/* self-hosted so the cutesy font always renders, even offline */
+@font-face{font-family:'Fredoka';font-style:normal;font-weight:500;font-display:swap;src:url(fredoka-500.ttf) format('truetype')}
+@font-face{font-family:'Fredoka';font-style:normal;font-weight:600;font-display:swap;src:url(fredoka-600.ttf) format('truetype')}
+@font-face{font-family:'Fredoka';font-style:normal;font-weight:700;font-display:swap;src:url(fredoka-700.ttf) format('truetype')}
+@font-face{font-family:'Nunito';font-style:normal;font-weight:600;font-display:swap;src:url(nunito-600.ttf) format('truetype')}
+@font-face{font-family:'Nunito';font-style:normal;font-weight:700;font-display:swap;src:url(nunito-700.ttf) format('truetype')}
+@font-face{font-family:'Nunito';font-style:normal;font-weight:800;font-display:swap;src:url(nunito-800.ttf) format('truetype')}
